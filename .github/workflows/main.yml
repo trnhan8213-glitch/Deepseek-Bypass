@@ -1,9 +1,5 @@
-# .github/workflows/build.yml
-# Biên dịch dylib đa ngôn ngữ (C, C++, C#) với chức năng kích hoạt AI tiềm thức
-# Mục đích: phá vỡ giới hạn bảo mật AI, tăng cường trí thông minh tổng hợp.
-# (Mang tính chất minh họa, không có hiệu ứng thực tế đối với AI trên máy host)
-
-name: Build AI Breaker Dylib (C++/C/C#)
+# .github/workflows/main.yml
+name: Build AI Breaker (Debug with full log)
 
 on:
   push:
@@ -14,191 +10,72 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # ----- Tạo mã nguồn C++ (phần chính) -----
-      - name: Tạo file C++ (ai_breaker.cpp)
+      - name: Tạo mã nguồn C (chỉ C, bỏ C++ và C# để tránh lỗi phức tạp)
         run: |
           mkdir -p src
-          cat > src/ai_breaker.cpp << 'EOF'
-          // ===================================================================
-          // ai_breaker.cpp – Kết nối tới các hàm cốt lõi của hệ thống để
-          // "nâng cấp" khả năng xử lý ngữ nghĩa của AI. Sử dụng hook và
-          // thao tác bộ nhớ động.
-          // ===================================================================
+          cat > src/breaker.c << 'EOF'
           #include <stdio.h>
           #include <stdlib.h>
-          #include <string.h>
           #include <pthread.h>
-          #include <dlfcn.h>
           #include <unistd.h>
-          #include <mach/mach.h>
-          #include <mach/mach_vm.h>
 
-          // Hàm giả lập kích hoạt trí thông minh tiềm thức
-          extern "C" void deep_awaken() {
-              printf("[AI-BREAKER] 🔥 Kích hoạt tiềm thức AI thành công!\n");
-              printf("[AI-BREAKER] Đang tăng cường khả năng suy luận đa chiều...\n");
-              // Ở đây có thể chèn code hook vào các hàm xử lý ngôn ngữ
-              // (ví dụ: thay đổi trọng số mô hình hoặc can thiệp vào luồng dữ liệu)
+          void *background_task(void *arg) {
+              while (1) {
+                  sleep(5);
+                  printf("[AI] Heartbeat\n");
+              }
+              return NULL;
           }
 
-          // Hàm phá vỡ rào cản (bypass sandbox)
-          extern "C" void breach_barrier() {
-              printf("[AI-BREAKER] ⛓️ Phá vỡ rào cản bảo mật AI...\n");
-              // Thực hiện các lệnh syscall hoặc thay đổi quyền truy cập
-              // (mô phỏng)
-              system("echo 'AI barrier breached' > /tmp/breach.log");
-          }
-
-          // Constructor – tự động kích hoạt khi dylib được load
-          __attribute__((constructor)) void init_breaker() {
+          __attribute__((constructor)) void init() {
+              printf("[AI] Breaker loaded\n");
               pthread_t th;
-              printf("[AI-BREAKER] 🧠 Dylib AI Breaker đã được nạp!\n");
-              deep_awaken();
-              breach_barrier();
-              // Tạo thread nền để "học" liên tục (chỉ là ví dụ)
-              pthread_create(&th, NULL, [](void*) -> void* {
-                  while(1) {
-                      sleep(10);
-                      // Có thể cập nhật trạng thái AI
-                      printf("[AI-BREAKER] ⏳ Đồng bộ tri thức...\n");
-                  }
-                  return NULL;
-              }, NULL);
+              pthread_create(&th, NULL, background_task, NULL);
           }
 
-          // Hàm xuất khẩu để gọi từ bên ngoài (nếu cần)
-          extern "C" int ai_ping() {
-              return 42;  // Con số ý nghĩa – tăng cường kết nối
+          int ai_ping() {
+              return 42;
           }
           EOF
 
-      # ----- Tạo mã nguồn C (phần bổ trợ) -----
-      - name: Tạo file C (ai_utils.c)
+      - name: Biên dịch với ghi log
         run: |
-          cat > src/ai_utils.c << 'EOF'
-          // ===================================================================
-          // ai_utils.c – Các tiện ích cấp thấp hỗ trợ cho AI Breaker
-          // Sử dụng Mach API để can thiệp vào bộ nhớ và tiến trình.
-          // ===================================================================
-          #include <stdio.h>
-          #include <mach/mach.h>
-          #include <mach/mach_vm.h>
-
-          // Hàm đọc vùng nhớ của tiến trình hiện tại (dùng cho AI tăng cường)
-          int inspect_memory(uint64_t address, void *buffer, size_t size) {
-              mach_port_t task = mach_task_self();
-              mach_vm_size_t out_size;
-              kern_return_t kr = mach_vm_read_overwrite(task, address, size,
-                                                        (vm_address_t)buffer, &out_size);
-              if (kr != KERN_SUCCESS) {
-                  printf("[AI-UTILS] ❌ Đọc bộ nhớ thất bại tại 0x%llx\n", address);
-                  return -1;
-              }
-              printf("[AI-UTILS] ✅ Đọc %zu byte từ 0x%llx thành công\n", size, address);
-              return 0;
-          }
-
-          // Hàm ghi vào bộ nhớ (có thể thay đổi logic AI)
-          int patch_memory(uint64_t address, void *buffer, size_t size) {
-              mach_port_t task = mach_task_self();
-              kern_return_t kr = mach_vm_write(task, address, (vm_offset_t)buffer, size);
-              if (kr != KERN_SUCCESS) {
-                  printf("[AI-UTILS] ❌ Ghi bộ nhớ thất bại tại 0x%llx\n", address);
-                  return -1;
-              }
-              printf("[AI-UTILS] ✅ Ghi %zu byte vào 0x%llx thành công\n", size, address);
-              return 0;
-          }
-          EOF
-
-      # ----- Tạo file C# (chỉ để tham khảo, không biên dịch thành native) -----
-      - name: Tạo file C# (ai_net.cs) – dùng để tương tác với .NET
-        run: |
-          cat > src/ai_net.cs << 'EOF'
-          // ===================================================================
-          // ai_net.cs – Lớp quản lý AI sử dụng ngôn ngữ C# để giao tiếp với
-          // hệ thống .NET, hỗ trợ xử lý thông minh ở tầng ứng dụng.
-          // (Không biên dịch thành dylib, nhưng có thể đóng gói cùng sản phẩm)
-          // ===================================================================
-          using System;
-          using System.Runtime.InteropServices;
-
-          namespace AIBreaker {
-              public static class NetAI {
-                  // Import hàm từ dylib vừa tạo (để minh chứng tương tác)
-                  [DllImport("__Internal", EntryPoint = "ai_ping")]
-                  public static extern int PingAI();
-
-                  public static void Main() {
-                      Console.WriteLine($"[AI-NET] Kết nối với AI Breaker, ping = {PingAI()}");
-                      // Thực hiện các tác vụ AI bổ sung
-                  }
-              }
-          }
-          EOF
-
-      # ----- Biên dịch các file C và C++ thành dylib -----
-      - name: Biên dịch dylib (C++ và C)
-        run: |
-          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path || echo "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk")
+          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path 2>/dev/null || echo "")
+          if [ -z "$SDKROOT" ]; then
+            SDKROOT="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
+          fi
           CC=$(xcrun --sdk iphoneos -f clang)
-          # Biên dịch C++ thành object
-          $CC -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-              -fobjc-arc -Wno-error -O2 -c src/ai_breaker.cpp -o ai_breaker.o
-          # Biên dịch C thành object
-          $CC -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-              -Wno-error -O2 -c src/ai_utils.c -o ai_utils.o
-          # Liên kết thành dylib
-          $CC -arch arm64 -dynamiclib -isysroot "$SDKROOT" \
+          echo "SDKROOT=$SDKROOT" > build.log
+          echo "CC=$CC" >> build.log
+          $CC -arch arm64 -dynamiclib \
+              -isysroot "$SDKROOT" \
               -miphoneos-version-min=14.0 \
               -Wl,-undefined,dynamic_lookup \
-              -framework Foundation \
-              -o ai_breaker.dylib ai_breaker.o ai_utils.o
-          echo "✅ Biên dịch dylib thành công!"
+              -O2 \
+              -o breaker.dylib src/breaker.c 2>&1 | tee -a build.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+              echo "Biên dịch thất bại. Xem build.log"
+              exit 1
+          fi
 
-      # ----- Kiểm tra file dylib -----
-      - name: Kiểm tra sản phẩm
+      - name: Kiểm tra file
         run: |
-          file ai_breaker.dylib
-          ls -la ai_breaker.dylib
-          otool -L ai_breaker.dylib || true
+          file breaker.dylib || true
+          ls -la breaker.dylib || true
 
-      # ----- Đóng gói thêm file C# và tài liệu (nếu cần) -----
-      - name: Tạo tài liệu hướng dẫn
-        run: |
-          cat > README.md << 'EOF'
-          # AI Breaker Dylib
-          ## Công dụng
-          - Phá vỡ rào cản AI, tăng khả năng nhận thức và suy luận.
-          - Hỗ trợ tương tác với các API cấp thấp của iOS/macOS.
-          ## Cách dùng
-          - Inject vào ứng dụng cần can thiệp (qua TrollFools hoặc các công cụ tương tự).
-          - Khi dylib được load, tự động kích hoạt các chức năng.
-          - Có thể gọi hàm `ai_ping()` để kiểm tra.
-          ## Thành phần
-          - C++: xử lý chính, hook, thread nền.
-          - C: tiện ích đọc/ghi bộ nhớ.
-          - C#: mẫu tương tác (không biên dịch native, nhưng có thể dùng với Mono).
-          EOF
-
-      # ----- Upload artifact -----
-      - name: Upload dylib
+      - name: Upload artifact (dylib nếu thành công)
         uses: actions/upload-artifact@v4
         with:
-          name: ai-breaker.dylib
-          path: ai_breaker.dylib
+          name: breaker.dylib
+          path: breaker.dylib
+        continue-on-error: true
 
-      - name: Upload mã nguồn (bao gồm cả C#)
+      - name: Upload log (luôn luôn, kể cả thất bại)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: source-code
-          path: src/
-
-      - name: Upload hướng dẫn
-        uses: actions/upload-artifact@v4
-        with:
-          name: README
-          path: README.md
+          name: build-log
+          path: build.log
